@@ -1,0 +1,22 @@
+[
+  {
+    "uuid": "example-claude-conversation",
+    "name": "Example Claude Conversation",
+    "created_at": "2024-03-09T16:00:00Z",
+    "updated_at": "2024-03-09T16:05:00Z",
+    "chat_messages": [
+      {
+        "uuid": "message-1",
+        "sender": "human",
+        "created_at": "2024-03-09T16:00:00Z",
+        "text": "Hello, please summarize this dummy export."
+      },
+      {
+        "uuid": "message-2",
+        "sender": "assistant",
+        "created_at": "2024-03-09T16:05:00Z",
+        "text": "This is a dummy response for converter testing."
+      }
+    ]
+  }
+]

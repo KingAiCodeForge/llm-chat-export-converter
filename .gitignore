@@ -1,0 +1,29 @@
+# Raw private exports
+private_exports/*
+!private_exports/.gitkeep
+
+# Generated outputs
+outputs/
+*_markdown/
+*_index.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
