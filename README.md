@@ -8,6 +8,7 @@ The goal is simple: keep raw exports private, make the output easier to search, 
 
 - Converts ChatGPT `conversations.json` into one Markdown file per conversation.
 - Converts Claude `conversations.json` export batches into one Markdown file per conversation.
+- Restores ChatGPT `file-*.dat` and `file_*.dat` asset blobs to real filenames when `conversation_asset_file_names.json` is present.
 - Adds timestamped filenames.
 - Writes `_index.csv` for sorting and filtering.
 - Uses ASCII-safe Windows-friendly filenames.
@@ -33,10 +34,13 @@ Example:
 ```text
 private_exports/
   chatgpt/conversations.json
+  chatgpt/conversation_asset_file_names.json
+  chatgpt/file-abc123.dat
   claude/conversations.json
 outputs/
   chatgpt_markdown/
   claude_markdown/
+  chatgpt_assets/
 ```
 
 Do not commit raw exports. They can contain private chats, names, emails, files, memories, prompts and sensitive context.
@@ -59,6 +63,26 @@ python .\scripts\chatgpt_export_to_markdown.py `
   --skip-system `
   --overwrite
 ```
+
+## ChatGPT Asset Usage
+
+ChatGPT exports may store uploads and generated files as opaque `.dat` blobs. If the export includes `conversation_asset_file_names.json`, restore those blobs before trying to inspect or convert them.
+
+```powershell
+python .\scripts\restore_chatgpt_assets.py `
+  --input .\private_exports\chatgpt `
+  --output .\outputs\chatgpt_assets
+```
+
+Preview first:
+
+```powershell
+python .\scripts\restore_chatgpt_assets.py `
+  --input .\private_exports\chatgpt `
+  --dry-run
+```
+
+By default the script hardlinks files to avoid duplicating large exports on the same drive. Use `--copy` if you need separate physical copies. Output is sorted into `images/`, `documents/`, `data/`, `audio/`, `archives/`, and `other/`, plus `_asset_index.csv`.
 
 ## Claude Usage
 
@@ -83,6 +107,8 @@ python .\scripts\claude_export_to_markdown.py `
 - `private_exports/` is empty or contains only `.gitkeep`.
 - `outputs/` is not committed.
 - No real `conversations.json`, `memories.json`, `users.json`, attachments or mined notes are committed.
+- No export sidecars such as `user.json`, `group_chats.json`, `message_feedback.json`, `shared_conversations.json`, `shopping.json`, `sora.json`, or `export_manifest.json` are committed.
+- No `file-*.dat`, `file_*.dat`, `conversation_asset_file_names.json`, `chat.html`, `latest_export/`, split-output folders, or restored `assets/` folders are committed.
 - Example files use dummy text only.
 - No personal names, emails, company strategy, client material or private prompts are present.
 

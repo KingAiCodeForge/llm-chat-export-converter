@@ -1,11 +1,31 @@
 # Raw private exports
 private_exports/*
 !private_exports/.gitkeep
+conversations.json
+conversations-*.json
+conversation_asset_file_names.json
+export_manifest.json
+group_chats.json
+memories.json
+message_feedback.json
+shared_conversations.json
+shopping.json
+sora.json
+user.json
+users.json
+chat.html
+file-*.dat
+file_*.dat
+latest_export/
 
 # Generated outputs
 outputs/
 *_markdown/
+*_assets/
+*_converted_md/
 *_index.csv
+assets/
+CHATGPT_SPLIT_ULTIMATE/
 
 # Python
 __pycache__/
