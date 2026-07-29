@@ -296,7 +296,7 @@ def parse_date_filter(value: str | None, end_of_day: bool = False) -> datetime |
     except ValueError as exc:
         raise ValueError(f"Invalid date {value!r}, use YYYY-MM-DD") from exc
     if end_of_day:
-        parsed = parsed.replace(hour=23, minute=59, second=59)
+        parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
     return parsed.replace(tzinfo=timezone.utc)
 
 
@@ -386,13 +386,18 @@ def process_claude_export(
             filename = f"{stamp}_{index:04d}_{safe_title}_{str(uuid)[:8]}.md"
             output_file = output_dir / filename
 
-            if output_file.exists() and not overwrite:
-                skipped += 1
-                rendered_count = 0
-            else:
-                content, rendered_count = conversation_to_markdown(conv, index, options)
-                output_file.write_text(content, encoding="utf-8")
+            content, rendered_count = conversation_to_markdown(conv, index, options)
+            try:
+                if overwrite:
+                    output_file.write_text(content, encoding="utf-8")
+                else:
+                    with output_file.open(
+                        "x", encoding="utf-8", newline="\n"
+                    ) as handle:
+                        handle.write(content)
                 saved += 1
+            except FileExistsError:
+                skipped += 1
 
             rows.append(
                 {

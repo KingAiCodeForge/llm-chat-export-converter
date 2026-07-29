@@ -25,6 +25,19 @@ No third-party packages are required.
 python --version
 ```
 
+## Unified CLI for LLMs and automation
+
+Install the JSON-first dispatcher:
+
+```powershell
+python -m pip install -e .
+llm-chat-export capabilities
+```
+
+It provides `chatgpt`, `claude`, and `restore-assets` subcommands with explicit input/output paths. Successful reports go to stdout as one JSON object; failures go to stderr as JSON. Existing Markdown files are not overwritten unless `--overwrite` is supplied; if `_index.csv` already exists, choose a new output directory or explicitly allow replacement. Asset restoration is a dry run unless `--execute` is supplied, requires an explicit output directory when executing, and copies by default so edits cannot mutate the private source blobs through hardlinks.
+
+See [LLM_USAGE.md](LLM_USAGE.md) for the complete agent contract.
+
 ## Safe Folder Layout
 
 Put raw exports in `private_exports/`. That folder is ignored by Git.
