@@ -27,6 +27,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# The modules are usable both as package imports and standalone scripts.
+try:
+    from .csv_safety import spreadsheet_safe_row
+except ImportError:  # direct: python scripts/<converter>.py
+    from csv_safety import spreadsheet_safe_row
+
 try:
     from zoneinfo import ZoneInfo
 except Exception:  # pragma: no cover - old Python fallback
@@ -347,7 +353,7 @@ def write_index_csv(rows: list[dict[str, Any]], output_dir: Path) -> None:
             ],
         )
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(spreadsheet_safe_row(row) for row in rows)
 
 
 def output_filename(conv: dict[str, Any], index: int, legacy: bool) -> str:
