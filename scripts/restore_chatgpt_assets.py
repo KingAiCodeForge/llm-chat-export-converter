@@ -24,6 +24,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+# The modules are usable both as package imports and standalone scripts.
+try:
+    from .csv_safety import spreadsheet_safe_row
+except ImportError:  # direct: python scripts/<converter>.py
+    from csv_safety import spreadsheet_safe_row
+
 
 BLOB_PATTERNS = ("file-*.dat", "file_*.dat")
 
@@ -311,7 +317,7 @@ def restore_assets(
                 ],
             )
             writer.writeheader()
-            writer.writerows(rows)
+            writer.writerows(spreadsheet_safe_row(row) for row in rows)
 
     return {
         "source_dir": str(source_dir),
