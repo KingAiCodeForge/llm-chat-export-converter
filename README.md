@@ -11,6 +11,7 @@ The goal is simple: keep raw exports private, make the output easier to search, 
 - Restores ChatGPT `file-*.dat` and `file_*.dat` asset blobs to real filenames when `conversation_asset_file_names.json` is present.
 - Adds timestamped filenames.
 - Writes `_index.csv` for sorting and filtering.
+- Neutralises formula-like text in conversation and restored-asset CSV indexes before a spreadsheet opens them.
 - Uses ASCII-safe Windows-friendly filenames.
 - Skips tool/thinking payloads by default.
 - Runs locally with no network calls and no upload.
@@ -114,6 +115,14 @@ python .\scripts\claude_export_to_markdown.py `
   --timezone Australia/Adelaide `
   --overwrite
 ```
+
+CSV safety: Imported conversation titles, identifiers and restored filenames
+can contain user-controlled text such as `=1+2` or `@SUM(...)`. The index
+writer prefixes a literal apostrophe for cells that might execute as spreadsheet
+formulas, including values with leading whitespace. This affects **CSV metadata
+only**, not the original export, Markdown conversation content or restored
+asset filenames. Consumers requiring the unescaped metadata should read the
+source JSON instead of treating the CSV as a canonical lossless export.
 
 ## Privacy Checklist Before Publishing
 
