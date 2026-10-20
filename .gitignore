@@ -50,3 +50,9 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+
+# Local credentials and machine configuration
+.env
+.env.*
+*.pem
+*.key

@@ -20,12 +20,21 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import io
 import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+# The modules are usable both as package imports and standalone scripts.
+try:
+    from .csv_safety import spreadsheet_safe_row
+    from .output_safety import check_destination, prepare_cli_streams, write_text
+except ImportError:  # direct: python scripts/<converter>.py
+    from csv_safety import spreadsheet_safe_row
+    from output_safety import check_destination, prepare_cli_streams, write_text
 
 try:
     from zoneinfo import ZoneInfo
@@ -331,23 +340,24 @@ def filter_conversations(
     return output
 
 
-def write_index_csv(rows: list[dict[str, Any]], output_dir: Path) -> None:
+def write_index_csv(rows: list[dict[str, Any]], output_dir: Path, *, overwrite: bool = False) -> None:
     index_path = output_dir / "_index.csv"
-    with index_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "number",
-                "title",
-                "id",
-                "created_at",
-                "updated_at",
-                "rendered_message_count",
-                "file",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
+    handle = io.StringIO(newline="")
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=[
+            "number",
+            "title",
+            "id",
+            "created_at",
+            "updated_at",
+            "rendered_message_count",
+            "file",
+        ],
+    )
+    writer.writeheader()
+    writer.writerows(spreadsheet_safe_row(row) for row in rows)
+    write_text(index_path, handle.getvalue(), overwrite=overwrite)
 
 
 def output_filename(conv: dict[str, Any], index: int, legacy: bool) -> str:
@@ -359,7 +369,7 @@ def output_filename(conv: dict[str, Any], index: int, legacy: bool) -> str:
         return f"{index:04d}_{safe_title}.md"
 
     stamp = filename_timestamp(conv.get("create_time"))
-    return f"{stamp}_{index:04d}_{safe_title}_{conv_id[:8]}.md"
+    return f"{stamp}_{index:04d}_{safe_title}_{sanitize_filename(conv_id[:8])}.md"
 
 
 def process_chatgpt_export(
@@ -375,9 +385,13 @@ def process_chatgpt_export(
     options: RenderOptions | None = None,
 ) -> dict[str, Any]:
     options = options or RenderOptions()
-    input_json_path = input_json_path.resolve()
-    output_dir = output_dir or (input_json_path.parent / "chatgpt_export_markdown")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    input_json_path = input_json_path.expanduser().resolve()
+    output_dir = (output_dir or (input_json_path.parent / "chatgpt_export_markdown")).expanduser().resolve()
+    if limit is not None and limit < 1:
+        raise ValueError("limit must be at least 1")
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise ValueError("start date must be on or before end date")
+    check_destination(output_dir / "_index.csv", input_json_path, overwrite=overwrite)
 
     conversations = load_conversations(input_json_path)
     conversations = filter_conversations(conversations, title_filter, start_date, end_date)
@@ -389,6 +403,8 @@ def process_chatgpt_export(
     )
     if limit is not None:
         conversations = conversations[:limit]
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     if not quiet:
         print("ChatGPT Conversations Processor v3.0")
@@ -406,15 +422,11 @@ def process_chatgpt_export(
             filename = output_filename(conv, index, legacy_filenames)
             output_file = output_dir / filename
 
+            # Validate before replacing an existing output, even with --overwrite.
+            check_destination(output_file, input_json_path, overwrite=True)
             content, rendered_count = conversation_to_markdown(conv, index, options)
             try:
-                if overwrite:
-                    output_file.write_text(content, encoding="utf-8")
-                else:
-                    with output_file.open(
-                        "x", encoding="utf-8", newline="\n"
-                    ) as handle:
-                        handle.write(content)
+                write_text(output_file, content, overwrite=overwrite)
                 saved += 1
             except FileExistsError:
                 skipped += 1
@@ -438,7 +450,7 @@ def process_chatgpt_export(
             if not quiet:
                 print(f"  error on conversation {index}: {exc}")
 
-    write_index_csv(rows, output_dir)
+    write_index_csv(rows, output_dir, overwrite=overwrite)
 
     if not quiet:
         print("Done")
@@ -482,11 +494,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    prepare_cli_streams()
     parser = build_parser()
     args = parser.parse_args()
 
     if args.input:
-        input_path = Path(args.input)
+        input_path = Path(args.input).expanduser()
     else:
         detected = autodetect_input(Path.cwd())
         if detected is None:
@@ -512,18 +525,23 @@ def main() -> int:
         timezone_name=args.timezone,
     )
 
-    result = process_chatgpt_export(
-        input_json_path=input_path,
-        output_dir=Path(args.output) if args.output else None,
-        overwrite=args.overwrite and not args.no_overwrite,
-        quiet=args.quiet,
-        title_filter=args.title,
-        start_date=start_date,
-        end_date=end_date,
-        limit=args.limit,
-        legacy_filenames=args.legacy_filenames,
-        options=options,
-    )
+    try:
+        result = process_chatgpt_export(
+            input_json_path=input_path,
+            output_dir=Path(args.output) if args.output else None,
+            overwrite=args.overwrite and not args.no_overwrite,
+            quiet=args.quiet,
+            title_filter=args.title,
+            start_date=start_date,
+            end_date=end_date,
+            limit=args.limit,
+            legacy_filenames=args.legacy_filenames,
+            options=options,
+        )
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
     return 0 if result["errors"] == 0 else 1
 
 

@@ -11,6 +11,7 @@ The goal is simple: keep raw exports private, make the output easier to search, 
 - Restores ChatGPT `file-*.dat` and `file_*.dat` asset blobs to real filenames when `conversation_asset_file_names.json` is present.
 - Adds timestamped filenames.
 - Writes `_index.csv` for sorting and filtering.
+- Neutralises formula-like text in conversation and restored-asset CSV indexes before a spreadsheet opens them.
 - Uses ASCII-safe Windows-friendly filenames.
 - Skips tool/thinking payloads by default.
 - Runs locally with no network calls and no upload.
@@ -95,7 +96,7 @@ python .\scripts\restore_chatgpt_assets.py `
   --dry-run
 ```
 
-By default the script hardlinks files to avoid duplicating large exports on the same drive. Use `--copy` if you need separate physical copies. Output is sorted into `images/`, `documents/`, `data/`, `audio/`, `archives/`, and `other/`, plus `_asset_index.csv`.
+Both the standalone script and unified CLI copy files by default so editing a restored file cannot change a source blob. The advanced `--hardlink` option shares source contents and should only be used deliberately. Choose a new output directory for each restore: an existing `_asset_index.csv` is protected. Output is sorted into `images/`, `documents/`, `data/`, `audio/`, `archives/`, and `other/`, plus `_asset_index.csv`.
 
 ## Claude Usage
 
@@ -114,6 +115,23 @@ python .\scripts\claude_export_to_markdown.py `
   --timezone Australia/Adelaide `
   --overwrite
 ```
+
+CSV safety: Imported conversation titles, identifiers and restored filenames
+can contain user-controlled text such as `=1+2` or `@SUM(...)`. The index
+writer prefixes a literal apostrophe for cells that might execute as spreadsheet
+formulas, including values with leading whitespace. This affects **CSV metadata
+only**, not the original export, Markdown conversation content or restored
+asset filenames. Consumers requiring the unescaped metadata should read the
+source JSON instead of treating the CSV as a canonical lossless export.
+
+All conversion entrypoints protect an existing `_index.csv` unless `--overwrite`
+is supplied. Input/output aliases are rejected even with that flag. Replacement
+of derived files uses a new file so existing hardlinks cannot modify an archive.
+Malformed JSON is rejected before creating an output directory. Conversation IDs
+are sanitized for filenames while the original IDs remain in metadata.
+
+See [the qualification ledger](docs/QUALIFICATION.md) for the tested release
+scope, source provenance and script-by-script review.
 
 ## Privacy Checklist Before Publishing
 

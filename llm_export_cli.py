@@ -14,7 +14,7 @@ from scripts import claude_export_to_markdown as claude
 from scripts import restore_chatgpt_assets as assets
 
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 SCHEMA_VERSION = "1.0"
 EXIT_SUCCESS = 0
 EXIT_PARTIAL = 1
@@ -34,7 +34,8 @@ class JsonArgumentParser(argparse.ArgumentParser):
 
 
 def _emit(stream: TextIO, payload: dict[str, Any]) -> None:
-    stream.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+    # ASCII JSON survives redirected Windows streams with legacy encodings.
+    stream.write(json.dumps(payload, ensure_ascii=True, sort_keys=True) + "\n")
 
 
 def _result(command: str, result: dict[str, Any]) -> dict[str, Any]:

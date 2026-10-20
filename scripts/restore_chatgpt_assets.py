@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import io
 import os
 import re
 import shutil
@@ -23,6 +24,14 @@ import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
+
+# The modules are usable both as package imports and standalone scripts.
+try:
+    from .csv_safety import spreadsheet_safe_row
+    from .output_safety import check_destination, prepare_cli_streams, write_text
+except ImportError:  # direct: python scripts/<converter>.py
+    from csv_safety import spreadsheet_safe_row
+    from output_safety import check_destination, prepare_cli_streams, write_text
 
 
 BLOB_PATTERNS = ("file-*.dat", "file_*.dat")
@@ -100,7 +109,8 @@ MAGIC_EXTENSIONS: tuple[tuple[bytes, str], ...] = (
 def sniff_extension(path: Path) -> str:
     """Return a best-effort extension from file magic bytes."""
     try:
-        head = path.open("rb").read(32).lstrip()
+        with path.open("rb") as stream:
+            head = stream.read(32).lstrip()
     except OSError:
         return ".bin"
 
@@ -129,7 +139,7 @@ def kind_for_extension(extension: str) -> str:
 def sanitize_filename(name: str, max_stem_len: int = 110) -> str:
     """Make a Windows-safe filename while preserving the extension."""
     name = (name or "asset").replace("%27", "'")
-    name = re.sub(r"[\\/:*?\"<>|\r\n\t]+", "_", name).strip().strip(".")
+    name = re.sub(r"[\\/:*?\"<>|\x00-\x1f]+", "_", name).strip().strip(".")
     stem, extension = os.path.splitext(name)
     stem = re.sub(r"\s+", " ", stem).strip()
     if len(stem) > max_stem_len:
@@ -140,12 +150,16 @@ def sanitize_filename(name: str, max_stem_len: int = 110) -> str:
 def link_or_copy(source: Path, destination: Path, copy: bool) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if copy:
-        shutil.copy2(source, destination)
+        with source.open("rb") as original, destination.open("xb") as restored:
+            shutil.copyfileobj(original, restored)
         return
     try:
         os.link(source, destination)
+    except FileExistsError:
+        raise
     except OSError:
-        shutil.copy2(source, destination)
+        with source.open("rb") as original, destination.open("xb") as restored:
+            shutil.copyfileobj(original, restored)
 
 
 def collect_asset_blobs(source_dir: Path) -> list[Path]:
@@ -237,12 +251,19 @@ def unique_destination(directory: Path, filename: str, used: set[Path]) -> Path:
 def restore_assets(
     source_dir: Path,
     output_dir: Path | None = None,
-    copy: bool = False,
+    copy: bool = True,
     flat: bool = False,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    source_dir = source_dir.resolve()
-    output_dir = output_dir.resolve() if output_dir else source_dir / "assets"
+    source_dir = source_dir.expanduser().resolve()
+    if not source_dir.is_dir():
+        raise ValueError(f"input directory not found: {source_dir}")
+    output_dir = output_dir.expanduser().resolve() if output_dir else source_dir / "assets"
+    if output_dir == source_dir:
+        raise ValueError("output must not be the input directory")
+    index_path = output_dir / "_asset_index.csv"
+    if not dry_run:
+        check_destination(index_path, source_dir / "conversation_asset_file_names.json", overwrite=False)
     name_map = load_name_map(source_dir)
     blobs = collect_asset_blobs(source_dir)
 
@@ -291,27 +312,16 @@ def restore_assets(
             }
         )
 
-    index_path = output_dir / "_asset_index.csv"
     if not dry_run:
         output_dir.mkdir(parents=True, exist_ok=True)
-        with index_path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(
-                handle,
-                fieldnames=[
-                    "dat_id",
-                    "restored_path",
-                    "kind",
-                    "ext",
-                    "size_bytes",
-                    "original_name",
-                    "in_name_map",
-                    "source_blob",
-                    "normalised_id",
-                    "name_map_key",
-                ],
-            )
-            writer.writeheader()
-            writer.writerows(rows)
+        handle = io.StringIO(newline="")
+        writer = csv.DictWriter(handle, fieldnames=[
+            "dat_id", "restored_path", "kind", "ext", "size_bytes",
+            "original_name", "in_name_map", "source_blob", "normalised_id", "name_map_key",
+        ])
+        writer.writeheader()
+        writer.writerows(spreadsheet_safe_row(row) for row in rows)
+        write_text(index_path, handle.getvalue(), overwrite=False)
 
     return {
         "source_dir": str(source_dir),
@@ -340,17 +350,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="ChatGPT export folder containing .dat blobs and optional conversation_asset_file_names.json",
     )
     parser.add_argument("-o", "--output", help="Output assets directory, default: <input>/assets")
-    parser.add_argument("--copy", action="store_true", help="Copy files instead of hardlinking")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--copy", dest="copy", action="store_true", help="Copy files (default)")
+    mode.add_argument("--hardlink", dest="copy", action="store_false", help="Advanced: share source file contents")
+    parser.set_defaults(copy=True)
     parser.add_argument("--flat", action="store_true", help="Do not sort into kind subfolders")
     parser.add_argument("--dry-run", action="store_true", help="Preview restored names without writing files")
     return parser
 
 
 def main() -> int:
+    prepare_cli_streams()
     parser = build_parser()
     args = parser.parse_args()
 
-    source_dir = Path(args.input)
+    source_dir = Path(args.input).expanduser()
     if not source_dir.exists():
         print(f"Error: input folder not found: {source_dir}", file=sys.stderr)
         return 1

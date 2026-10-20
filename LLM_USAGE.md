@@ -37,3 +37,9 @@ Add `--execute` only after reviewing the dry-run JSON. An explicit `--output` is
 Successful commands emit one schema `1.0` JSON object to stdout. Partial conversions emit their JSON report and return 1. Parser/usage errors return 2. Fatal processing failures emit one JSON error to stderr and return 3. Conversion never overwrites existing Markdown unless `--overwrite` is present. A pre-existing `_index.csv` also requires `--overwrite` or a new output directory. `--limit` must be at least 1, and a start date must not be later than the end date.
 
 Raw exports are private input. Never place them in prompts, logs, commits, fixtures, or public issue reports.
+
+Version 1.1.0 also applies index protection and copy-by-default restoration to the
+standalone scripts. Existing asset indexes require a new output directory;
+restoration does not replace them. Original input aliases are rejected even with
+`--overwrite`, and derived-file replacement does not follow hardlinks. JSON output
+escapes non-ASCII characters so redirected Windows streams remain valid JSON.
