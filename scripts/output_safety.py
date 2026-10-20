@@ -2,8 +2,16 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from pathlib import Path
+
+
+def prepare_cli_streams() -> None:
+    """Human-readable CLI paths must survive legacy redirected encodings."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
 
 
 def check_destination(path: Path, source: Path, *, overwrite: bool) -> None:

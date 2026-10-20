@@ -34,10 +34,10 @@ from typing import Any
 # The modules are usable both as package imports and standalone scripts.
 try:
     from .csv_safety import spreadsheet_safe_row
-    from .output_safety import check_destination, write_text
+    from .output_safety import check_destination, prepare_cli_streams, write_text
 except ImportError:  # direct: python scripts/<converter>.py
     from csv_safety import spreadsheet_safe_row
-    from output_safety import check_destination, write_text
+    from output_safety import check_destination, prepare_cli_streams, write_text
 
 try:
     from zoneinfo import ZoneInfo
@@ -469,6 +469,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    prepare_cli_streams()
     parser = build_parser()
     args = parser.parse_args()
 

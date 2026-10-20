@@ -121,7 +121,8 @@ def test_direct_entrypoint_outside_checkout_spaces_unicode(tmp_path, module, kin
     before = source.read_bytes()
     output = external / "derived output"
     run = subprocess.run([sys.executable, str(Path(module.__file__)), "--input", str(source),
-                          "--output", str(output), "--quiet"], cwd=external,
+                          "--output", str(output)], cwd=external,
+                         env=dict(os.environ, PYTHONIOENCODING="ascii"),
                          capture_output=True, timeout=20)
     assert run.returncode == 0, run.stderr
     assert source.read_bytes() == before
@@ -182,3 +183,23 @@ def test_symbolic_link_destination_is_rejected(tmp_path):
     with pytest.raises(ValueError):
         check_destination(link, source, overwrite=True)
     assert source.read_bytes() == b"original"
+
+
+def test_asset_direct_cli_external_unicode_paths_and_legacy_encoding(tmp_path):
+    external = tmp_path / "external café 空間"
+    external.mkdir()
+    source = external / "archive"
+    source.mkdir()
+    blob = source / "file-dummy.dat"
+    blob.write_bytes(b"original")
+    output = external / "derived output 空間"
+    command = [sys.executable, str(Path(assets.__file__)), "--input", str(source), "--output", str(output)]
+    environment = dict(os.environ, PYTHONIOENCODING="ascii")
+    preview = subprocess.run(command + ["--dry-run"], cwd=external, env=environment,
+                             capture_output=True, timeout=20)
+    assert preview.returncode == 0, preview.stderr
+    assert not output.exists()
+    run = subprocess.run(command, cwd=external, env=environment, capture_output=True, timeout=20)
+    assert run.returncode == 0, run.stderr
+    next(output.rglob("*.bin")).write_bytes(b"edited derived copy")
+    assert blob.read_bytes() == b"original"
