@@ -96,7 +96,7 @@ python .\scripts\restore_chatgpt_assets.py `
   --dry-run
 ```
 
-By default the script hardlinks files to avoid duplicating large exports on the same drive. Use `--copy` if you need separate physical copies. Output is sorted into `images/`, `documents/`, `data/`, `audio/`, `archives/`, and `other/`, plus `_asset_index.csv`.
+Both the standalone script and unified CLI copy files by default so editing a restored file cannot change a source blob. The advanced `--hardlink` option shares source contents and should only be used deliberately. Choose a new output directory for each restore: an existing `_asset_index.csv` is protected. Output is sorted into `images/`, `documents/`, `data/`, `audio/`, `archives/`, and `other/`, plus `_asset_index.csv`.
 
 ## Claude Usage
 
@@ -123,6 +123,15 @@ formulas, including values with leading whitespace. This affects **CSV metadata
 only**, not the original export, Markdown conversation content or restored
 asset filenames. Consumers requiring the unescaped metadata should read the
 source JSON instead of treating the CSV as a canonical lossless export.
+
+All conversion entrypoints protect an existing `_index.csv` unless `--overwrite`
+is supplied. Input/output aliases are rejected even with that flag. Replacement
+of derived files uses a new file so existing hardlinks cannot modify an archive.
+Malformed JSON is rejected before creating an output directory. Conversation IDs
+are sanitized for filenames while the original IDs remain in metadata.
+
+See [the qualification ledger](docs/QUALIFICATION.md) for the tested release
+scope, source provenance and script-by-script review.
 
 ## Privacy Checklist Before Publishing
 

@@ -11,14 +11,16 @@ from typing import Any
 
 FORMULA_LEADERS = ("=", "+", "-", "@")
 HIDDEN_LEADERS = ("\t", "\r", "\n")
-LEADING_IGNORABLE = " \t\r\n\ufeff"
 
 
 def spreadsheet_safe_cell(value: Any) -> Any:
     """Neutralise untrusted formulas while retaining the original text."""
     if not isinstance(value, str):
         return value
-    checked = value.lstrip(LEADING_IGNORABLE)
+    position = 0
+    while position < len(value) and (value[position].isspace() or value[position] == "\ufeff"):
+        position += 1
+    checked = value[position:]
     if value.startswith(HIDDEN_LEADERS) or checked.startswith(FORMULA_LEADERS):
         return "'" + value
     return value
