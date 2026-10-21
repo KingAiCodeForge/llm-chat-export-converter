@@ -167,6 +167,10 @@ def collect_asset_blobs(source_dir: Path) -> list[Path]:
     found: dict[str, Path] = {}
     for pattern in BLOB_PATTERNS:
         for path in source_dir.glob(pattern):
+            # An untrusted export must not borrow bytes from an arbitrary
+            # external target through a file-*.dat symbolic link.
+            if path.is_symlink():
+                raise ValueError(f"asset blob is a symbolic link: {path.name}")
             if path.is_file():
                 found[path.name] = path
     return sorted(found.values(), key=lambda path: path.name.lower())
@@ -224,6 +228,8 @@ def lookup_original_name(name_map: dict[str, Any], blob: Path) -> tuple[str | No
 
 def load_name_map(source_dir: Path) -> dict[str, Any]:
     path = source_dir / "conversation_asset_file_names.json"
+    if path.is_symlink():
+        raise ValueError("conversation asset name map must not be a symbolic link")
     if not path.exists():
         return {}
     data = json.loads(path.read_text(encoding="utf-8-sig"))
