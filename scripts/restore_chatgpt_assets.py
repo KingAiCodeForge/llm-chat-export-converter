@@ -96,7 +96,7 @@ MAGIC_EXTENSIONS: tuple[tuple[bytes, str], ...] = (
     (b"\xff\xd8\xff", ".jpg"),
     (b"\x89PNG\r\n\x1a\n", ".png"),
     (b"GIF8", ".gif"),
-    (b"RIFF", ".wav"),
+    # RIFF requires its subtype FOURCC at bytes 8..11; handled in sniff_extension.
     (b"%PDF-", ".pdf"),
     (b"PK\x03\x04", ".zip"),
     (b"<!DOCTYPE", ".html"),
@@ -115,6 +115,16 @@ def sniff_extension(path: Path) -> str:
         return ".bin"
 
     lower_head = head.lower()
+    # RIFF is a container family, not a synonym for WAV. WebP images also
+    # begin with RIFF, as do AVI and other formats. Do not mislabel unknowns.
+    if lower_head.startswith(b"riff"):
+        if len(lower_head) >= 12:
+            subtype = lower_head[8:12]
+            if subtype == b"wave":
+                return ".wav"
+            if subtype == b"webp":
+                return ".webp"
+        return ".bin"
     for signature, extension in MAGIC_EXTENSIONS:
         if lower_head.startswith(signature.lower()):
             return extension
